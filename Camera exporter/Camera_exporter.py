@@ -1,14 +1,19 @@
 import ctypes
-import string
 import os
 from PIL import Image
 import piexif
 import os
 from datetime import datetime
+import shutil
+from time import sleep
+
+
+save_location = "C:/CanonImages/"
 
 def get_external_drives():
     drives = []
     drive_bitmask = ctypes.windll.kernel32.GetLogicalDrives()
+
     for i in range(26):
         if drive_bitmask & (1 << i):
             drive_letter = f"{chr(65 + i)}:\\"
@@ -33,73 +38,76 @@ def get_external_drives():
                 drives.append((drive_letter, volume_name.value))
     return drives
 
-def select_external_drive():
-    drives = get_external_drives()
-    if not drives:
-        print("No external (removable) drives found.")
-        return None
-
-    print("External drives detected:")
-    for idx, (letter, label) in enumerate(drives, 1):
-        print(f"{idx}: {letter} - {label or 'No Label'}")
-
-    while True:
-        selected_drive = ""
-        try:
-            choice = int(input("Select a drive by number: "))
-            if 1 <= choice <= len(drives):
-                selected_drive = drives[choice - 1][0]
-        except ValueError:
-            selected_drive = ""
-            pass
-
-        if selected_drive != "":
-            os.chdir(selected_drive)
-            if os.path.isdir("DCIM"):
-                print(f"You selected: {selected_drive}")
-                return selected_drive
-            else:
-                selected_drive = ""
-                print("invalid selection. No DCIM folder present. Please try again.")
-        else:
-            print("Invalid selection. Please try again.")
-
-
 def extract_files(extractionDrive):
     #create folder to store images
-    imageFolder = os.path.expanduser("~")+ r"\OneDrive\Pictures\CanonImages"
+    imageFolder = save_location
     os.makedirs(imageFolder, exist_ok=True)
-    os.makedirs(imageFolder + r"\Unsorted", exist_ok=True)
     os.makedirs(imageFolder+ r"\temp", exist_ok=True)
     ctypes.windll.kernel32.SetFileAttributesW(imageFolder+ r"\temp", 0x02)
     print(f"Directory at: {imageFolder}")
+    #check drive for DCIM folder
+    if os.path.isdir(os.path.join(extractionDrive[0],"DCIM")):
+        print(f"NOTE: Drive {extractionDrive[1]} Contains DCIM folder - Starting extraction")
+    else:
+        print(f"NOTE: Drive {extractionDrive[1]} Does not contain DCIM folder - skipping")
+            
 
     # get folders to extract from
-    os.chdir("DCIM")
-    folders = os.listdir()
-    extractionFolders = []
-    for i in folders:
-       if i.endswith("CANON"):
-           extractionFolders.append(i)
+    folders = os.listdir(os.path.join(extractionDrive[0],"DCIM"))
     
     # loop through each folder and copy files to C:\users\$user
     print("Starting file transer process...")
-    for folder in extractionFolders:
-        print("\n\nCopying files from: " + folder)
-        os.system("robocopy " + extractionDrive + "DCIM/" + folder + " " + imageFolder + "/temp" + r' *.* /S /E /DCOPY:DA /COPY:DAT /R:1000000 /W:30 | findstr /V /C:"ROBOCOPY" /C:"Started :" /C:"Source =" /C:"Dest :" /C:"Files :" /C:"Options :" /C:"------------------------------------------------------------------------------"')
+    for folder in folders:
+        print("\n\nCopying files from: " + folder + "...")
+        os.system("robocopy " + extractionDrive[0] + "DCIM/" + folder + " " + imageFolder + "/temp" + r' *.* /S /E /DCOPY:DA /COPY:DAT /R:1000000 /W:30 | findstr /V /C:"ROBOCOPY" /C:"Started :" /C:"Source =" /C:"Dest :" /C:"Files :" /C:"Options :" /C:"------------------------------------------------------------------------------"')
     print("File transfer finished.")
 
+def get_date_taken(path):
+    try:
+        with Image.open(path) as img:
+            if "exif" in img.info:
+                exif_data = piexif.load(img.info["exif"])
+                date_taken_bytes = exif_data["Exif"].get(piexif.ExifIFD.DateTimeOriginal)
+                if date_taken_bytes:
+                    date_taken_str = date_taken_bytes.decode("utf-8")
+                    return datetime.strptime(date_taken_str, "%Y:%m:%d %H:%M:%S")
+    except Exception as e:
+        print(f"EXIF read error: {e}")
+
+    # Fallback: use file's modification time
+    try:
+        stat = os.stat(path)
+        return datetime.fromtimestamp(stat.st_mtime)
+    except Exception as e:
+        print(f"File access error: {e}")
+        return None
+
 def sort_images():
-    tempImagePath = os.path.expanduser("~")+ r"\OneDrive\Pictures\CanonImages\temp"
+    tempImagePath = os.path.join(save_location,"temp")
     images = os.listdir(tempImagePath)
-    print(images)
 
     #loop through each image and move it to a folder with a name corresponding to it's date taken
     for image in images:
-        print()
-if __name__ == "__main__":
-    print("Welcome to the Canon Image Extractor")
-    selected = select_external_drive()
-    extract_files(selected)
-    sort_images()
+        date = get_date_taken(tempImagePath + "/" + image)
+        date = date.strftime("%d-%m-%Y")
 
+        # make folder with name of date and move image to that folder
+        if os.path.isdir(save_location + str(date)) == False:
+            os.mkdir(save_location + str(date))
+            print("Creating directory'" + save_location + str(date) + "'")
+        
+        if os.path.isfile(os.path.join(save_location,str(date),image)) == False:
+            shutil.move(tempImagePath + "/" + image, save_location + str(date))
+            print("Copied file '" + image + "' to " + os.path.join(save_location,str(date)))
+        else:
+            print("File '" + image + "' already exists in " + os.path.join(save_location,str(date)))
+
+if __name__ == "__main__":
+
+    All_drives = get_external_drives()
+    #loop through all drives and try to extract from it
+    for drive in All_drives:
+        extract_files(drive)
+    sort_images()
+    print("Done")
+    sleep(5)
