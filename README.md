@@ -1,4 +1,6 @@
 # Canon Image Extractor
+**Currently only works for Windows**
+
 A tool designed to simplify and improve efficiency of ingesting Photographs or Videos from an external drive.
 
 Finds every connected drive with DCIM folder at the root and automatically copying files to specified location and sorting them by date taken.
