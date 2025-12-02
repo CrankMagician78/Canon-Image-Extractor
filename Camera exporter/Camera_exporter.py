@@ -7,7 +7,9 @@ from datetime import datetime
 import shutil
 from time import sleep
 
-
+#Change this field to change where the images are copied to
+#Say you want it to be on a folder on your desktop you'd do "C:/Users/YOURUSERNAME/Desktop/Images"
+#Note - if you are using onedrive to backup desktop it'd be "C:/Users/YOURUSERNAME/OneDrive/Desktop/Images"
 save_location = "C:/CanonImages/"
 
 def get_external_drives():
