@@ -6,6 +6,7 @@ A tool designed to simplify and improve efficiency of ingesting Photographs or V
 Finds every connected drive with DCIM folder at the root and automatically copying files to specified location and sorting them by date taken.
 Find how to install if you're unfamiliar with python at the bottom.
 ## Usage
+Will only extract from a drive if it has a file named "allow_save", added to prevent it trying to copy from drives you don't want it to.
 Once python and the required libraries are installed you will need to open the .py file in a file editor and find the line **save_location = "C:/CanonImages/"** and change the directory to wherever you need!
 Now you can double click the file to run it whenever you need it.
 
